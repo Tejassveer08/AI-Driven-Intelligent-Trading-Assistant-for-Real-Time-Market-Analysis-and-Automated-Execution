@@ -1,6 +1,4 @@
-
 import { useEffect, useRef } from "react";
-import { Application } from "@splinetool/runtime";
 
 interface SplineSceneProps {
   sceneUrl: string;
@@ -9,48 +7,42 @@ interface SplineSceneProps {
 
 const SplineScene = ({ sceneUrl, className = "" }: SplineSceneProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const splineRef = useRef<Application | null>(null);
 
   useEffect(() => {
-    // Clean up function for previous Spline instance
-    const cleanupSpline = () => {
-      if (splineRef.current) {
-        // Clean up code if needed when component unmounts
-        splineRef.current = null;
-      }
+    const scriptId = "spline-viewer-script";
+
+    const loadScript = () => {
+      return new Promise<void>((resolve, reject) => {
+        // Prevent loading script multiple times
+        if (document.getElementById(scriptId)) {
+          resolve();
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.id = scriptId;
+        script.type = "module";
+        script.src = "https://unpkg.com/@splinetool/viewer@1.9.89/build/spline-viewer.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Spline viewer script."));
+        document.body.appendChild(script);
+      });
     };
 
-    // Initialize Spline scene
-    const loadSpline = async () => {
-      if (!containerRef.current) return;
-      
+    const insertViewer = async () => {
       try {
-        console.log("Loading Spline scene:", sceneUrl);
-        
-        // For visual purposes before the real scene loads
-        containerRef.current.innerHTML = `
-          <div class="w-full h-full flex items-center justify-center bg-dark-100/50 rounded-xl overflow-hidden border border-neon/20">
-            <div class="w-20 h-20 relative">
-              <div class="w-full h-full rounded-full border-4 border-neon/30 border-t-neon animate-spin"></div>
-              <div class="absolute inset-0 flex items-center justify-center text-neon">3D</div>
-            </div>
-          </div>
-        `;
-        
-        // Create a Spline App instance and load the scene
-        const spline = new Application(containerRef.current);
-        splineRef.current = spline;
-        await spline.load(sceneUrl);
-        
-        // Clear the loading indicator once the scene is loaded
+        await loadScript();
+
         if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-          // The Spline runtime will handle adding its own canvas
+          containerRef.current.innerHTML = "";
+          const splineViewer = document.createElement("spline-viewer");
+          splineViewer.setAttribute("url", sceneUrl);
+          splineViewer.style.width = "100%";
+          splineViewer.style.height = "100%";
+          containerRef.current.appendChild(splineViewer);
         }
       } catch (error) {
-        console.error("Failed to load Spline scene:", error);
-        
-        // Show error state if loading fails
+        console.error("Failed to initialize Spline viewer:", error);
         if (containerRef.current) {
           containerRef.current.innerHTML = `
             <div class="w-full h-full flex items-center justify-center bg-dark-100/50 rounded-xl overflow-hidden border border-neon/20">
@@ -62,15 +54,21 @@ const SplineScene = ({ sceneUrl, className = "" }: SplineSceneProps) => {
         }
       }
     };
-    
-    loadSpline();
-    
-    // Cleanup on unmount
-    return cleanupSpline;
+
+    insertViewer();
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
+    };
   }, [sceneUrl]);
 
   return (
-    <div ref={containerRef} className={`spline-scene w-full h-full ${className}`}></div>
+    <div
+      ref={containerRef}
+      className={`spline-scene w-full h-full ${className}`}
+    />
   );
 };
 
